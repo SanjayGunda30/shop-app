@@ -1,50 +1,29 @@
-# Ledgerly POS
+# Ledgerly POS Web Demo
 
-A free-resource, web-only retail point-of-sale and inventory app built with Flutter Web, Express, SQLite, PostgreSQL/Supabase, and Firebase Authentication. It includes a dashboard, stock editor, checkout, payment modes, PDF tax invoice, sales history, and shop profile. Demo mode works without Firebase; API demo roles are accepted only outside production.
+A Netlify-hosted, web-only retail POS demo built with Flutter Web. It includes a dashboard, item and stock management, a cart, payment mode selection, PDF invoices, sales history, and a shop profile. It does not use Firebase or a separate API/backend.
 
-## Local setup
+## Data and roles
 
-Prerequisites: Node.js 20+, Flutter stable with the Web toolchain, and (optionally) a Firebase project.
+Items, completed sales, invoice numbering, and shop settings are saved in browser storage on the current device/browser. They are not shared across browsers or devices and can be erased by clearing browser data. The admin/cashier/viewer selector is only a UI preview; there is no sign-in or access control. Do not use this demo for shared or production sales records.
 
-1. Generate the Flutter Web platform scaffolding once:
+Images use URLs rather than uploaded files. Invoice calculations and GST fields are provided for demonstration only, not as a guarantee of statutory compliance. Verify applicable tax details and rules before issuing real invoices.
 
-   ```powershell
-   cd client
-   flutter create --platforms=web .
-   flutter pub get
-   ```
+## Run locally
 
-2. Start the API in another terminal:
+Prerequisites: Flutter stable with the Web toolchain.
 
-   ```powershell
-   cd backend
-   Copy-Item .env.example .env
-   npm install
-   npm run dev
-   ```
+```powershell
+cd client
+flutter create --platforms=web .
+flutter pub get
+flutter run -d chrome
+```
 
-   SQLite creates `backend/ledgerly.sqlite` automatically. Local development accepts the `x-demo-role` header; do not set `NODE_ENV=development` in production.
+## Deploy to Netlify
 
-3. Run the app in a browser:
+The GitHub Actions workflow at `.github/workflows/deploy-netlify.yml` builds Flutter Web on a hosted runner and publishes `client/build/web` on pushes to `main` or manual dispatch. Add only these repository Actions secrets:
 
-   ```powershell
-   cd client
-   flutter run -d chrome --dart-define=API_URL=http://localhost:3000
-   ```
+- `NETLIFY_AUTH_TOKEN`: Netlify user settings → Applications → Personal access tokens.
+- `NETLIFY_SITE_ID`: Netlify site configuration → General → Site details → API ID.
 
-   For Firebase email/password sign-in, enable Email/Password in Firebase Authentication and pass `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID`, and `FIREBASE_PROJECT_ID` using `--dart-define`. Set `FIREBASE_SERVICE_ACCOUNT` on the API to the service-account JSON string. Set Firebase custom claims `role` to `admin`, `cashier`, or `viewer`; run `npm run set-role -- cashier@example.com cashier` from `backend` to assign a role to an existing Firebase user. The server grants admin item/profile management, cashier checkout, and viewer read access.
-
-## API and data
-
-The API is under `/api`: `/health`, `/items`, `/sales`, `/reports/summary`, `/shop`, and `/team`. Checkout validates available stock and writes sale, lines, and stock decrements in one database transaction. SQLite is used when `DATABASE_URL` is empty; set `DATABASE_URL` to a PostgreSQL connection string to use Supabase. Set `DATABASE_SSL=true` for hosted PostgreSQL. Run `npm test` from `backend` for role, checkout, stock, and reporting coverage.
-
-Images are stored as item image URLs, keeping the starter free of a paid file-storage dependency. GST is calculated from each item's configured rate. Invoices include financial-year sequence numbers, item HSN/SAC, place of supply, and an intra-state CGST/SGST or inter-state IGST split. Before issuing statutory invoices, configure and verify supplier GSTIN/address, product tax rates and codes, recipient details where required, place-of-supply selection, and applicable state rules with a qualified tax professional. Do not treat demo values as valid tax details.
-
-## Deploy
-
-- **Supabase:** create a PostgreSQL project and copy its connection string into Render's `DATABASE_URL`; keep SSL enabled.
-- **Render:** create a Node web service using `render.yaml` (or root directory `backend`, build `npm install`, start `npm start`). Set `NODE_ENV=production`, `DATABASE_URL`, `DATABASE_SSL=true`, `FIREBASE_SERVICE_ACCOUNT`, and `CORS_ORIGIN` to the deployed frontend origin.
-- **Netlify:** connect the repository to a Netlify site and add GitHub repository secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`, `API_URL`, `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID`, and `FIREBASE_PROJECT_ID`. The GitHub Actions workflow at `.github/workflows/deploy-netlify.yml` builds Flutter on a hosted runner and deploys on pushes to `main` (or manual dispatch). Configure the Render API's `CORS_ORIGIN` to the Netlify site origin.
-- **Vercel:** use `vercel.json`, set `API_URL`, and configure the build environment with Flutter stable. Output is `client/build/web`.
-
-Free tiers and their limits change. Firebase, Render, Supabase, and Netlify/Vercel accounts are separate services; no credentials or billing are included here.
+No API URL, Firebase configuration, database, or other hosting credentials are used by this demo. Free-plan limits are set by Netlify and may change.

@@ -2,18 +2,12 @@
 client/.dart_tool/
 client/.packages
 client/build/
-client/android/.gradle/
-client/android/local.properties
-client/android/key.properties
 
-# Node / local data
+# Local leftovers from the removed API prototype
 backend/node_modules/
-backend/.env
 backend/*.sqlite
 backend/*.sqlite-shm
 backend/*.sqlite-wal
 
 # Secrets and build artifacts
-*.jks
-*.keystore
 .env

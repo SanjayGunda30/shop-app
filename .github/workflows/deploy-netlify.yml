@@ -31,24 +31,7 @@ jobs:
 
       - name: Build web app
         working-directory: client
-        env:
-          API_URL: ${{ secrets.API_URL }}
-          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        run: |
-          test -n "$API_URL" || { echo "::error::Set the API_URL repository secret"; exit 1; }
-          test -n "$FIREBASE_API_KEY" || { echo "::error::Set the Firebase web configuration secrets"; exit 1; }
-          test -n "$FIREBASE_APP_ID" || exit 1
-          test -n "$FIREBASE_MESSAGING_SENDER_ID" || exit 1
-          test -n "$FIREBASE_PROJECT_ID" || exit 1
-          flutter build web --release \
-            --dart-define="API_URL=$API_URL" \
-            --dart-define="FIREBASE_API_KEY=$FIREBASE_API_KEY" \
-            --dart-define="FIREBASE_APP_ID=$FIREBASE_APP_ID" \
-            --dart-define="FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID" \
-            --dart-define="FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID"
+        run: flutter build web --release
 
       - name: Deploy to Netlify
         env:

@@ -1,5 +1,5 @@
 name: ledgerly_pos
-description: Web-only retail POS and stock management app.
+description: Netlify-hosted retail POS demo with browser-local data.
 publish_to: none
 version: 1.0.0+1
 
@@ -10,13 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  firebase_core: ^3.9.0
-  firebase_auth: ^5.3.4
   google_fonts: ^6.2.1
-  http: ^1.2.2
   intl: ^0.19.0
   pdf: ^3.11.1
   printing: ^5.13.4
+  shared_preferences: ^2.3.5
 
 dev_dependencies:
   flutter_test:

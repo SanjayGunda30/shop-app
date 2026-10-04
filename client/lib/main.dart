@@ -1,14 +1,10 @@
 import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-
-const apiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3000');
+import 'package:shared_preferences/shared_preferences.dart';
 const currency = '₹';
 final money = NumberFormat.currency(locale: 'en_IN', symbol: currency, decimalDigits: 2);
 
@@ -20,46 +16,7 @@ const sampleItems = <Map<String, dynamic>>[
   {'id': 'i-5', 'name': 'Masala chai', 'sku': 'DRK-009', 'price': 35.0, 'unit': 'cup', 'stock': 26.0, 'low_stock': 8.0, 'gst_rate': 5.0, 'hsn_sac': '9963', 'image_url': ''},
 ];
 
-class PosApi {
-  String role;
-  String? token;
-  PosApi(this.role, this.token);
-
-  Map<String, String> get headers => {
-    'Content-Type': 'application/json',
-    if (token != null) 'Authorization': 'Bearer $token',
-    if (token == null) 'x-demo-role': role,
-  };
-
-  Future<dynamic> get(String path) async {
-    final response = await http.get(Uri.parse('$apiUrl$path'), headers: headers).timeout(const Duration(seconds: 3));
-    if (response.statusCode >= 400) throw Exception(jsonDecode(response.body)['error'] ?? 'Request failed');
-    return jsonDecode(response.body);
-  }
-
-  Future<dynamic> send(String method, String path, Map<String, dynamic> body) async {
-    final uri = Uri.parse('$apiUrl$path');
-    final response = switch (method) {
-      'PUT' => await http.put(uri, headers: headers, body: jsonEncode(body)),
-      'POST' => await http.post(uri, headers: headers, body: jsonEncode(body)),
-      _ => await http.delete(uri, headers: headers),
-    };
-    if (response.statusCode >= 400) throw Exception(jsonDecode(response.body)['error'] ?? 'Request failed');
-    return response.body.isEmpty ? null : jsonDecode(response.body);
-  }
-}
-
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
-  const appId = String.fromEnvironment('FIREBASE_APP_ID');
-  const senderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
-  const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
-  if (apiKey.isNotEmpty && appId.isNotEmpty && senderId.isNotEmpty && projectId.isNotEmpty) {
-    await Firebase.initializeApp(options: FirebaseOptions(apiKey: apiKey, appId: appId, messagingSenderId: senderId, projectId: projectId));
-  }
-  runApp(const LedgerlyApp());
-}
+void main() => runApp(const LedgerlyApp());
 
 class LedgerlyApp extends StatelessWidget {
   const LedgerlyApp({super.key});
@@ -84,9 +41,8 @@ class PosHome extends StatefulWidget {
 class _PosHomeState extends State<PosHome> {
   int page = 0;
   String role = 'admin';
-  String? token;
-  User? user;
   bool loading = false;
+  int invoiceSequence = 0;
   List<Map<String, dynamic>> items = sampleItems.map((e) => Map<String, dynamic>.from(e)).toList();
   List<Map<String, dynamic>> sales = [];
   Map<String, dynamic> shop = {'name': 'The Green Counter', 'address': '18 Market Road, Bengaluru', 'phone': '+91 98765 43210', 'gstin': '', 'state': 'Karnataka', 'currency': 'INR'};
@@ -96,7 +52,6 @@ class _PosHomeState extends State<PosHome> {
   final placeOfSupply = TextEditingController(text: 'Karnataka');
   String paymentMode = 'UPI';
   String supplyType = 'intra_state';
-  PosApi get api => PosApi(role, token);
   bool get isAdmin => role == 'admin';
 
   @override
@@ -107,35 +62,58 @@ class _PosHomeState extends State<PosHome> {
   Future<void> _refresh() async {
     setState(() => loading = true);
     try {
-      final results = await Future.wait([api.get('/api/items'), api.get('/api/reports/summary'), api.get('/api/sales'), api.get('/api/shop')]);
+      final preferences = await SharedPreferences.getInstance();
+      final saved = preferences.getString('ledgerly.localState');
+      if (saved != null) {
+        final state = Map<String, dynamic>.from(jsonDecode(saved));
+        items = List<Map<String, dynamic>>.from((state['items'] as List).map((item) => Map<String, dynamic>.from(item)));
+        sales = List<Map<String, dynamic>>.from((state['sales'] as List).map((sale) => Map<String, dynamic>.from(sale)));
+        shop = Map<String, dynamic>.from(state['shop']);
+        invoiceSequence = state['invoice_sequence'] as int? ?? 0;
+      }
+      final now = DateTime.now();
+      final todaySales = sales.where((sale) {
+        final date = DateTime.tryParse('${sale['created_at']}')?.toLocal();
+        return date != null && date.year == now.year && date.month == now.month && date.day == now.day;
+      }).toList();
+      final lowStockCount = items.where((item) => _number(item['stock']) <= _number(item['low_stock'])).length;
       if (!mounted) return;
       setState(() {
-        items = List<Map<String, dynamic>>.from(results[0]); report = Map<String, dynamic>.from(results[1]);
-        sales = List<Map<String, dynamic>>.from(results[2]); shop = Map<String, dynamic>.from(results[3]);
+        report = {
+          'revenue': todaySales.fold<double>(0, (sum, sale) => sum + _number(sale['total'])),
+          'sale_count': todaySales.length,
+          'tax': todaySales.fold<double>(0, (sum, sale) => sum + _number(sale['tax'])),
+          'item_count': items.length,
+          'low_stock_count': lowStockCount,
+        };
         placeOfSupply.text = '${shop['state'] ?? ''}';
       });
-    } catch (_) { /* Demo data remains available while the API is offline. */ }
+    } catch (_) { /* Keep sample data available if browser storage is unavailable. */ }
     if (mounted) setState(() => loading = false);
   }
 
-  Future<void> _signIn() async {
-    if (Firebase.apps.isEmpty) { _notice('Add Firebase build defines to enable sign-in. Demo access is active.'); return; }
-    final email = TextEditingController(); final password = TextEditingController();
-    final credentials = await showDialog<(String, String)>(context: context, builder: (context) => AlertDialog(
-      title: const Text('Team sign in'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')), const SizedBox(height: 12), TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Password'))]),
-      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, (email.text.trim(), password.text)), child: const Text('Sign in'))],
-    ));
-    if (credentials == null) return;
-    try {
-      final result = await FirebaseAuth.instance.signInWithEmailAndPassword(email: credentials.$1, password: credentials.$2);
-      final claims = await result.user!.getIdTokenResult(true);
-      setState(() { user = result.user; token = awaitToken(claims.token); role = '${claims.claims?['role'] ?? 'cashier'}'; });
-      await _refresh();
-    } catch (error) { _notice('Sign in failed: $error'); }
+  Future<void> _persist() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('ledgerly.localState', jsonEncode({
+      'items': items,
+      'sales': sales,
+      'shop': shop,
+      'invoice_sequence': invoiceSequence,
+    }));
   }
 
-  String? awaitToken(String? value) => value;
-  Future<void> _signOut() async { await FirebaseAuth.instance.signOut(); setState(() { token = null; user = null; role = 'admin'; }); await _refresh(); }
+  Future<void> _resetDemo() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.remove('ledgerly.localState');
+    setState(() {
+      items = sampleItems.map((item) => Map<String, dynamic>.from(item)).toList();
+      sales = [];
+      shop = {'name': 'The Green Counter', 'address': '18 Market Road, Bengaluru', 'phone': '+91 98765 43210', 'gstin': '', 'state': 'Karnataka', 'currency': 'INR'};
+      invoiceSequence = 0;
+    });
+    await _refresh();
+    _notice('Local demo data reset');
+  }
   void _notice(String message) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message))); }
   double _number(dynamic value) => (value as num?)?.toDouble() ?? 0;
   String _shortId(dynamic value) { final text = '$value'; return text.substring(0, text.length < 8 ? text.length : 8); }
@@ -158,24 +136,77 @@ class _PosHomeState extends State<PosHome> {
       ]))), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, {'name': name.text.trim(), 'sku': sku.text.trim(), 'price': double.tryParse(price.text) ?? 0, 'unit': unit.text.trim(), 'stock': double.tryParse(stock.text) ?? 0, 'low_stock': item?['low_stock'] ?? 5, 'gst_rate': double.tryParse(gst.text) ?? 0, 'hsn_sac': hsn.text.trim(), 'image_url': image.text.trim()}), child: const Text('Save item'))],
     ));
     if (result == null || result['name'] == '' || result['sku'] == '') return;
-    try {
-      if (item == null) { final created = await api.send('POST', '/api/items', result); setState(() => items.add(Map<String, dynamic>.from(created))); }
-      else { final updated = await api.send('PUT', '/api/items/${item['id']}', result); setState(() => items[items.indexWhere((row) => row['id'] == item['id'])] = Map<String, dynamic>.from(updated)); }
-      _notice('Item saved');
-    } catch (error) { _notice('Could not save item: $error'); }
+    setState(() {
+      if (item == null) {
+        items.add({'id': 'item_${DateTime.now().microsecondsSinceEpoch}', ...result});
+      } else {
+        final index = items.indexWhere((row) => row['id'] == item['id']);
+        if (index >= 0) items[index] = {...item, ...result};
+      }
+    });
+    await _persist();
+    _notice('Item saved in this browser');
   }
 
   Future<void> _deleteItem(Map<String, dynamic> item) async {
-    try { await api.send('DELETE', '/api/items/${item['id']}', {}); setState(() => items.removeWhere((row) => row['id'] == item['id'])); }
-    catch (error) { _notice('Could not delete item: $error'); }
+    setState(() => items.removeWhere((row) => row['id'] == item['id']));
+    await _persist();
   }
 
   Future<void> _checkout() async {
     if (cart.isEmpty) return;
-    try {
-      final sale = Map<String, dynamic>.from(await api.send('POST', '/api/sales', {'payment_mode': paymentMode, 'supply_type': supplyType, 'place_of_supply': placeOfSupply.text.trim(), 'lines': cart.entries.map((entry) => {'item_id': entry.key, 'quantity': entry.value}).toList()}));
-      setState(() { cart.clear(); sales.insert(0, sale); }); await _refresh(); await _invoice(sale);
-    } catch (error) { _notice('Checkout failed: $error'); }
+    for (final entry in cart.entries) {
+      final item = items.firstWhere((row) => row['id'] == entry.key);
+      if (_number(item['stock']) < entry.value) {
+        _notice('Not enough stock for ${item['name']}');
+        return;
+      }
+    }
+    final now = DateTime.now();
+    final financialYear = now.month >= 4 ? now.year : now.year - 1;
+    invoiceSequence += 1;
+    final invoiceNo = 'INV/${financialYear.toString().substring(2)}-${((financialYear + 1) % 100).toString().padLeft(2, '0')}/${invoiceSequence.toString().padLeft(5, '0')}';
+    final lines = cart.entries.map((entry) {
+      final item = items.firstWhere((row) => row['id'] == entry.key);
+      final base = _number(item['price']) * entry.value;
+      final tax = base * _number(item['gst_rate']) / 100;
+      return {
+        'id': 'line_${now.microsecondsSinceEpoch}_${entry.key}',
+        'item_id': item['id'],
+        'item_name': item['name'],
+        'hsn_sac': item['hsn_sac'] ?? '',
+        'quantity': entry.value,
+        'unit_price': _number(item['price']),
+        'gst_rate': _number(item['gst_rate']),
+        'line_total': base + tax,
+      };
+    }).toList();
+    final subtotal = lines.fold<double>(0, (sum, line) => sum + _number(line['unit_price']) * _number(line['quantity']));
+    final tax = lines.fold<double>(0, (sum, line) => sum + _number(line['unit_price']) * _number(line['quantity']) * _number(line['gst_rate']) / 100);
+    final sale = <String, dynamic>{
+      'id': 'sale_${now.microsecondsSinceEpoch}',
+      'invoice_no': invoiceNo,
+      'supply_type': supplyType,
+      'place_of_supply': placeOfSupply.text.trim(),
+      'created_at': now.toIso8601String(),
+      'payment_mode': paymentMode,
+      'subtotal': subtotal,
+      'tax': tax,
+      'total': subtotal + tax,
+      'cashier_name': 'Local demo',
+      'lines': lines,
+    };
+    setState(() {
+      for (final entry in cart.entries) {
+        final index = items.indexWhere((item) => item['id'] == entry.key);
+        items[index]['stock'] = _number(items[index]['stock']) - entry.value;
+      }
+      cart.clear();
+      sales.insert(0, sale);
+    });
+    await _persist();
+    await _refresh();
+    await _invoice(sale);
   }
 
   Future<void> _invoice(Map<String, dynamic> sale) async {
@@ -196,8 +227,9 @@ class _PosHomeState extends State<PosHome> {
     final saved = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Shop profile'), content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: name, decoration: const InputDecoration(labelText: 'Shop name')), const SizedBox(height: 10), TextField(controller: address, decoration: const InputDecoration(labelText: 'Address')), const SizedBox(height: 10), TextField(controller: phone, decoration: const InputDecoration(labelText: 'Phone')), const SizedBox(height: 10), TextField(controller: gstin, decoration: const InputDecoration(labelText: 'GSTIN')), const SizedBox(height: 10), TextField(controller: state, decoration: const InputDecoration(labelText: 'Supplier state'))])), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save'))]));
     if (saved != true) return;
     final next = {...shop, 'name': name.text, 'address': address.text, 'phone': phone.text, 'gstin': gstin.text, 'state': state.text, 'currency': 'INR'};
-    try { await api.send('PUT', '/api/shop', next); setState(() { shop = next; placeOfSupply.text = state.text; }); _notice('Shop profile updated'); }
-    catch (error) { _notice('Could not save profile: $error'); }
+    setState(() { shop = next; placeOfSupply.text = state.text; });
+    await _persist();
+    _notice('Shop profile saved in this browser');
   }
 
   @override
@@ -205,16 +237,16 @@ class _PosHomeState extends State<PosHome> {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final titles = ['Overview', 'Point of sale', 'Inventory', 'Sales', 'Settings'];
     final icons = [Icons.grid_view_rounded, Icons.point_of_sale_rounded, Icons.inventory_2_outlined, Icons.receipt_long_outlined, Icons.storefront_outlined];
-    final visiblePages = isAdmin || user == null ? [0, 1, 2, 3, 4] : role == 'cashier' ? [0, 1, 2, 3] : [0, 2, 3, 4];
+    final visiblePages = isAdmin ? [0, 1, 2, 3, 4] : role == 'cashier' ? [0, 1, 2, 3] : [0, 2, 3, 4];
     if (!visiblePages.contains(page)) page = 0;
     return Scaffold(body: Row(children: [
       if (wide) Container(width: 224, color: const Color(0xff192b27), child: SafeArea(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(padding: const EdgeInsets.fromLTRB(23, 22, 20, 30), child: Row(children: [const Icon(Icons.bolt_rounded, color: Color(0xffb9e0a5), size: 27), const SizedBox(width: 10), Text('ledgerly', style: GoogleFonts.manrope(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800))]),
         for (final index in visiblePages) _navItem(index, titles[index], icons[index]), const Spacer(),
-        Padding(padding: const EdgeInsets.all(16), child: Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: const Color(0xff263a35), borderRadius: BorderRadius.circular(8)), child: Row(children: [const CircleAvatar(radius: 17, backgroundColor: Color(0xffb9e0a5), child: Icon(Icons.person, size: 18, color: Color(0xff192b27))), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(user?.displayName ?? (role == 'admin' ? 'Store owner' : 'Team member'), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)), Text(role.toUpperCase(), style: const TextStyle(color: Color(0xffadc2b9), fontSize: 10, letterSpacing: 0))])), IconButton(tooltip: user == null ? 'Sign in' : 'Sign out', onPressed: user == null ? _signIn : _signOut, icon: Icon(user == null ? Icons.login : Icons.logout, size: 17, color: Colors.white70))]))),
+        Padding(padding: const EdgeInsets.all(16), child: Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: const Color(0xff263a35), borderRadius: BorderRadius.circular(8)), child: Row(children: [const CircleAvatar(radius: 17, backgroundColor: Color(0xffb9e0a5), child: Icon(Icons.storage_outlined, size: 18, color: Color(0xff192b27))), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Local demo', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)), Text(role.toUpperCase(), style: const TextStyle(color: Color(0xffadc2b9), fontSize: 10))]))]))),
       ]))),
       Expanded(child: SafeArea(child: Column(children: [
-        Container(height: 74, padding: const EdgeInsets.symmetric(horizontal: 28), decoration: const BoxDecoration(color: Color(0xfffbfcfa), border: Border(bottom: BorderSide(color: Color(0xffe5e8e1)))), child: Row(children: [if (!wide) const Icon(Icons.bolt_rounded, color: Color(0xff176b59)), if (!wide) const SizedBox(width: 10), Text(titles[page], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xff20302b))), const Spacer(), Text(DateFormat('EEE, d MMM').format(DateTime.now()), style: const TextStyle(color: Color(0xff78847d), fontSize: 12)), const SizedBox(width: 14), IconButton(tooltip: 'Refresh data', onPressed: _refresh, icon: const Icon(Icons.refresh_rounded, size: 20)), if (!wide) IconButton(tooltip: user == null ? 'Sign in' : 'Sign out', onPressed: user == null ? _signIn : _signOut, icon: Icon(user == null ? Icons.login : Icons.logout))]),
+        Container(height: 74, padding: const EdgeInsets.symmetric(horizontal: 28), decoration: const BoxDecoration(color: Color(0xfffbfcfa), border: Border(bottom: BorderSide(color: Color(0xffe5e8e1)))), child: Row(children: [if (!wide) const Icon(Icons.bolt_rounded, color: Color(0xff176b59)), if (!wide) const SizedBox(width: 10), Text(titles[page], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xff20302b))), const Spacer(), Text('Local demo · ${DateFormat('EEE, d MMM').format(DateTime.now())}', style: const TextStyle(color: Color(0xff78847d), fontSize: 12)), const SizedBox(width: 14), IconButton(tooltip: 'Reload local data', onPressed: _refresh, icon: const Icon(Icons.refresh_rounded, size: 20))]),
         Expanded(child: loading && report.isEmpty ? const Center(child: CircularProgressIndicator()) : _pageView()),
         if (!wide) NavigationBar(selectedIndex: visiblePages.indexOf(page), onDestinationSelected: (value) => setState(() => page = visiblePages[value]), destinations: [for (final index in visiblePages) NavigationDestination(icon: Icon(icons[index]), label: titles[index])]),
       ]))),
@@ -272,7 +304,15 @@ class _PosHomeState extends State<PosHome> {
   Widget _cartPanel() => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: const Color(0xfffbfcfa), border: Border.all(color: const Color(0xffe5e8e1)), borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Text('Current sale', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text('${cart.values.fold<int>(0, (a, b) => a + b)} items', style: const TextStyle(fontSize: 11, color: Color(0xff78847d)))]), const Divider(height: 22), Expanded(child: cart.isEmpty ? const Center(child: Text('Tap an item to add it here', style: TextStyle(color: Color(0xff78847d), fontSize: 12))) : ListView(children: cart.entries.map((entry) { final item = items.firstWhere((row) => row['id'] == entry.key); return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${item['name']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), Text(money.format(_number(item['price'])), style: const TextStyle(fontSize: 10, color: Color(0xff78847d)))])), IconButton(onPressed: () => setState(() { if (entry.value <= 1) { cart.remove(entry.key); } else { cart[entry.key] = entry.value - 1; } }), icon: const Icon(Icons.remove_circle_outline, size: 18)), Text('${entry.value}', style: const TextStyle(fontSize: 12)), IconButton(onPressed: () => setState(() => cart[entry.key] = entry.value + 1), icon: const Icon(Icons.add_circle_outline, size: 18)), Text(money.format(_number(item['price']) * entry.value), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))])); }).toList())), const Divider(height: 20), Row(children: [const Text('Taxable value', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartSubtotal), style: const TextStyle(fontSize: 12))]), const SizedBox(height: 7), Row(children: [const Text('GST', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartTax), style: const TextStyle(fontSize: 12))]), const SizedBox(height: 12), Row(children: [const Text('Total due', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text(money.format(cartSubtotal + cartTax), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19, color: Color(0xff176b59)))]), const SizedBox(height: 12), SegmentedButton<String>(segments: const [ButtonSegment(value: 'Cash', label: Text('Cash')), ButtonSegment(value: 'UPI', label: Text('UPI')), ButtonSegment(value: 'Card', label: Text('Card'))], selected: {paymentMode}, onSelectionChanged: (value) => setState(() => paymentMode = value.first)), const SizedBox(height: 11), SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: cart.isEmpty ? null : _checkout, icon: const Icon(Icons.check), label: const Text('Charge & print invoice'))]));
 
   Widget _sales() => ListView(padding: const EdgeInsets.all(26), children: [Text('${sales.length} recent transactions', style: const TextStyle(color: Color(0xff78847d), fontSize: 12)), const SizedBox(height: 15), _section('Sales history', child: sales.isEmpty ? const Padding(padding: EdgeInsets.all(22), child: Text('Completed transactions appear here.')) : Column(children: sales.map((sale) => ListTile(leading: const Icon(Icons.receipt_long_outlined, color: Color(0xff176b59)), title: Text('Invoice ${sale['invoice_no'] ?? _shortId(sale['id'])}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)), subtitle: Text('${sale['created_at'] ?? ''} · ${sale['payment_mode'] ?? ''} · ${sale['cashier_name'] ?? ''}', style: const TextStyle(fontSize: 11)), trailing: Text(money.format(_number(sale['total'])), style: const TextStyle(fontWeight: FontWeight.w800)))).toList()))]);
-  Widget _settings() => ListView(padding: const EdgeInsets.all(26), children: [const Text('Store details', style: TextStyle(color: Color(0xff78847d), fontSize: 12)), const SizedBox(height: 15), _section('Invoice identity', trailing: isAdmin ? IconButton(tooltip: 'Edit profile', onPressed: _saveShop, icon: const Icon(Icons.edit_outlined, size: 18)) : null, child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${shop['name']}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)), const SizedBox(height: 7), Text('${shop['address']}', style: const TextStyle(color: Color(0xff78847d))), Text('${shop['phone']}', style: const TextStyle(color: Color(0xff78847d))), const SizedBox(height: 6), Text('GSTIN  ${shop['gstin']?.toString().isEmpty ?? true ? 'Not added' : shop['gstin']}', style: const TextStyle(fontSize: 12))]))), const SizedBox(height: 16), _section('Team access', child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Signed in as ${user?.email ?? 'Demo operator'}', style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 5), Text('Current role: ${role.toUpperCase()}', style: const TextStyle(fontSize: 12, color: Color(0xff78847d))), const SizedBox(height: 12), if (user == null) Wrap(spacing: 8, children: ['admin', 'cashier', 'viewer'].map((value) => ChoiceChip(label: Text(value), selected: role == value, onSelected: (_) { setState(() => role = value); _refresh(); })).toList()) else const Text('Team roles are managed by Firebase custom claims.', style: TextStyle(fontSize: 12, color: Color(0xff78847d)))])))]);
+  Widget _settings() => ListView(padding: const EdgeInsets.all(26), children: [
+    const Text('Local browser data', style: TextStyle(color: Color(0xff78847d), fontSize: 12)),
+    const SizedBox(height: 15),
+    _section('Invoice identity', trailing: isAdmin ? IconButton(tooltip: 'Edit profile', onPressed: _saveShop, icon: const Icon(Icons.edit_outlined, size: 18)) : null, child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${shop['name']}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)), const SizedBox(height: 7), Text('${shop['address']}', style: const TextStyle(color: Color(0xff78847d))), Text('${shop['state']} · ${shop['phone']}', style: const TextStyle(color: Color(0xff78847d))), const SizedBox(height: 6), Text('GSTIN  ${shop['gstin']?.toString().isEmpty ?? true ? 'Not added' : shop['gstin']}', style: const TextStyle(fontSize: 12))]))),
+    const SizedBox(height: 16),
+    _section('Role preview', child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Role previews only; this demo has no sign-in or permission security.', style: TextStyle(fontSize: 12, color: Color(0xff78847d))), const SizedBox(height: 12), Wrap(spacing: 8, children: ['admin', 'cashier', 'viewer'].map((value) => ChoiceChip(label: Text(value), selected: role == value, onSelected: (_) => setState(() { role = value; if (page >= 4 && value != 'admin') page = 0; })).toList())]))),
+    const SizedBox(height: 16),
+    Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(onPressed: _resetDemo, icon: const Icon(Icons.restart_alt), label: const Text('Reset local demo data'))),
+  ]);
 }
 
 class ExpandedIfWide extends StatelessWidget {
