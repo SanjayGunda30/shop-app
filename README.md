@@ -1,16 +1,16 @@
 # Ledgerly POS
 
-A free-resource retail point-of-sale and inventory starter for Flutter Android/Web, Express, SQLite, PostgreSQL/Supabase, and Firebase Authentication. The client includes a dashboard, stock editor, checkout, payment modes, PDF tax invoice, sales history, and shop profile. Demo mode works without Firebase; API demo roles are accepted only outside production.
+A free-resource, web-only retail point-of-sale and inventory app built with Flutter Web, Express, SQLite, PostgreSQL/Supabase, and Firebase Authentication. It includes a dashboard, stock editor, checkout, payment modes, PDF tax invoice, sales history, and shop profile. Demo mode works without Firebase; API demo roles are accepted only outside production.
 
 ## Local setup
 
-Prerequisites: Node.js 20+, Flutter stable with Android and Web toolchains, and (optionally) a Firebase project.
+Prerequisites: Node.js 20+, Flutter stable with the Web toolchain, and (optionally) a Firebase project.
 
-1. Generate Flutter platform scaffolding once:
+1. Generate the Flutter Web platform scaffolding once:
 
    ```powershell
    cd client
-   flutter create --platforms=android,web .
+   flutter create --platforms=web .
    flutter pub get
    ```
 
@@ -46,6 +46,5 @@ Images are stored as item image URLs, keeping the starter free of a paid file-st
 - **Render:** create a Node web service using `render.yaml` (or root directory `backend`, build `npm install`, start `npm start`). Set `NODE_ENV=production`, `DATABASE_URL`, `DATABASE_SSL=true`, `FIREBASE_SERVICE_ACCOUNT`, and `CORS_ORIGIN` to the deployed frontend origin.
 - **Netlify:** connect the repository to a Netlify site and add GitHub repository secrets `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`, `API_URL`, `FIREBASE_API_KEY`, `FIREBASE_APP_ID`, `FIREBASE_MESSAGING_SENDER_ID`, and `FIREBASE_PROJECT_ID`. The GitHub Actions workflow at `.github/workflows/deploy-netlify.yml` builds Flutter on a hosted runner and deploys on pushes to `main` (or manual dispatch). Configure the Render API's `CORS_ORIGIN` to the Netlify site origin.
 - **Vercel:** use `vercel.json`, set `API_URL`, and configure the build environment with Flutter stable. Output is `client/build/web`.
-- **Android / Play Console:** build with `flutter build appbundle --release` after setting the same `--dart-define` values and configuring Android signing in `client/android`. Upload the generated `.aab` through Play Console internal testing before production release; an APK can be generated with `flutter build apk --release`.
 
-Free tiers and their limits change. Firebase, Render, Supabase, Netlify/Vercel, Android signing, and Play Console accounts are separate services; no credentials or billing are included here.
+Free tiers and their limits change. Firebase, Render, Supabase, and Netlify/Vercel accounts are separate services; no credentials or billing are included here.
