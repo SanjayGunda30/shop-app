@@ -239,18 +239,70 @@ class _PosHomeState extends State<PosHome> {
     final icons = [Icons.grid_view_rounded, Icons.point_of_sale_rounded, Icons.inventory_2_outlined, Icons.receipt_long_outlined, Icons.storefront_outlined];
     final visiblePages = isAdmin ? [0, 1, 2, 3, 4] : role == 'cashier' ? [0, 1, 2, 3] : [0, 2, 3, 4];
     if (!visiblePages.contains(page)) page = 0;
-    return Scaffold(body: Row(children: [
-      if (wide) Container(width: 224, color: const Color(0xff192b27), child: SafeArea(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.fromLTRB(23, 22, 20, 30), child: Row(children: [const Icon(Icons.bolt_rounded, color: Color(0xffb9e0a5), size: 27), const SizedBox(width: 10), Text('ledgerly', style: GoogleFonts.manrope(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800))]),
-        for (final index in visiblePages) _navItem(index, titles[index], icons[index]), const Spacer(),
-        Padding(padding: const EdgeInsets.all(16), child: Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: const Color(0xff263a35), borderRadius: BorderRadius.circular(8)), child: Row(children: [const CircleAvatar(radius: 17, backgroundColor: Color(0xffb9e0a5), child: Icon(Icons.storage_outlined, size: 18, color: Color(0xff192b27))), const SizedBox(width: 9), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Local demo', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)), Text(role.toUpperCase(), style: const TextStyle(color: Color(0xffadc2b9), fontSize: 10))]))]))),
-      ]))),
-      Expanded(child: SafeArea(child: Column(children: [
-        Container(height: 74, padding: const EdgeInsets.symmetric(horizontal: 28), decoration: const BoxDecoration(color: Color(0xfffbfcfa), border: Border(bottom: BorderSide(color: Color(0xffe5e8e1)))), child: Row(children: [if (!wide) const Icon(Icons.bolt_rounded, color: Color(0xff176b59)), if (!wide) const SizedBox(width: 10), Text(titles[page], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xff20302b))), const Spacer(), Text('Local demo · ${DateFormat('EEE, d MMM').format(DateTime.now())}', style: const TextStyle(color: Color(0xff78847d), fontSize: 12)), const SizedBox(width: 14), IconButton(tooltip: 'Reload local data', onPressed: _refresh, icon: const Icon(Icons.refresh_rounded, size: 20))]),
-        Expanded(child: loading && report.isEmpty ? const Center(child: CircularProgressIndicator()) : _pageView()),
-        if (!wide) NavigationBar(selectedIndex: visiblePages.indexOf(page), onDestinationSelected: (value) => setState(() => page = visiblePages[value]), destinations: [for (final index in visiblePages) NavigationDestination(icon: Icon(icons[index]), label: titles[index])]),
-      ]))),
-    ]));
+    final sidebar = Container(
+      width: 224,
+      color: const Color(0xff192b27),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(23, 22, 20, 30),
+              child: Row(children: [
+                const Icon(Icons.bolt_rounded, color: Color(0xffb9e0a5), size: 27),
+                const SizedBox(width: 10),
+                Text('ledgerly', style: GoogleFonts.manrope(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+              ]),
+            ),
+            for (final index in visiblePages) _navItem(index, titles[index], icons[index]),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Container(
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(color: const Color(0xff263a35), borderRadius: BorderRadius.circular(8)),
+                child: Row(children: [
+                  const CircleAvatar(radius: 17, backgroundColor: Color(0xffb9e0a5), child: Icon(Icons.storage_outlined, size: 18, color: Color(0xff192b27))),
+                  const SizedBox(width: 9),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Local demo', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                    Text(role.toUpperCase(), style: const TextStyle(color: Color(0xffadc2b9), fontSize: 10)),
+                  ])),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    final header = Container(
+      height: 74,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      decoration: const BoxDecoration(color: Color(0xfffbfcfa), border: Border(bottom: BorderSide(color: Color(0xffe5e8e1)))),
+      child: Row(children: [
+        if (!wide) const Icon(Icons.bolt_rounded, color: Color(0xff176b59)),
+        if (!wide) const SizedBox(width: 10),
+        Text(titles[page], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xff20302b))),
+        const Spacer(),
+        Text('Local demo · ${DateFormat('EEE, d MMM').format(DateTime.now())}', style: const TextStyle(color: Color(0xff78847d), fontSize: 12)),
+        const SizedBox(width: 14),
+        IconButton(tooltip: 'Reload local data', onPressed: _refresh, icon: const Icon(Icons.refresh_rounded, size: 20)),
+      ]),
+    );
+    return Scaffold(
+      body: Row(children: [
+        if (wide) sidebar,
+        Expanded(child: SafeArea(child: Column(children: [
+          header,
+          Expanded(child: loading && report.isEmpty ? const Center(child: CircularProgressIndicator()) : _pageView()),
+          if (!wide) NavigationBar(
+            selectedIndex: visiblePages.indexOf(page),
+            onDestinationSelected: (value) => setState(() => page = visiblePages[value]),
+            destinations: [for (final index in visiblePages) NavigationDestination(icon: Icon(icons[index]), label: titles[index])],
+          ),
+        ]))),
+      ]),
+    );
   }
 
   Widget _navItem(int index, String title, IconData icon) {
@@ -304,15 +356,57 @@ class _PosHomeState extends State<PosHome> {
   Widget _cartPanel() => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: const Color(0xfffbfcfa), border: Border.all(color: const Color(0xffe5e8e1)), borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Text('Current sale', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text('${cart.values.fold<int>(0, (a, b) => a + b)} items', style: const TextStyle(fontSize: 11, color: Color(0xff78847d)))]), const Divider(height: 22), Expanded(child: cart.isEmpty ? const Center(child: Text('Tap an item to add it here', style: TextStyle(color: Color(0xff78847d), fontSize: 12))) : ListView(children: cart.entries.map((entry) { final item = items.firstWhere((row) => row['id'] == entry.key); return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${item['name']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), Text(money.format(_number(item['price'])), style: const TextStyle(fontSize: 10, color: Color(0xff78847d)))])), IconButton(onPressed: () => setState(() { if (entry.value <= 1) { cart.remove(entry.key); } else { cart[entry.key] = entry.value - 1; } }), icon: const Icon(Icons.remove_circle_outline, size: 18)), Text('${entry.value}', style: const TextStyle(fontSize: 12)), IconButton(onPressed: () => setState(() => cart[entry.key] = entry.value + 1), icon: const Icon(Icons.add_circle_outline, size: 18)), Text(money.format(_number(item['price']) * entry.value), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))])); }).toList())), const Divider(height: 20), Row(children: [const Text('Taxable value', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartSubtotal), style: const TextStyle(fontSize: 12))]), const SizedBox(height: 7), Row(children: [const Text('GST', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartTax), style: const TextStyle(fontSize: 12))]), const SizedBox(height: 12), Row(children: [const Text('Total due', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text(money.format(cartSubtotal + cartTax), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19, color: Color(0xff176b59)))]), const SizedBox(height: 12), SegmentedButton<String>(segments: const [ButtonSegment(value: 'Cash', label: Text('Cash')), ButtonSegment(value: 'UPI', label: Text('UPI')), ButtonSegment(value: 'Card', label: Text('Card'))], selected: {paymentMode}, onSelectionChanged: (value) => setState(() => paymentMode = value.first)), const SizedBox(height: 11), SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: cart.isEmpty ? null : _checkout, icon: const Icon(Icons.check), label: const Text('Charge & print invoice'))]));
 
   Widget _sales() => ListView(padding: const EdgeInsets.all(26), children: [Text('${sales.length} recent transactions', style: const TextStyle(color: Color(0xff78847d), fontSize: 12)), const SizedBox(height: 15), _section('Sales history', child: sales.isEmpty ? const Padding(padding: EdgeInsets.all(22), child: Text('Completed transactions appear here.')) : Column(children: sales.map((sale) => ListTile(leading: const Icon(Icons.receipt_long_outlined, color: Color(0xff176b59)), title: Text('Invoice ${sale['invoice_no'] ?? _shortId(sale['id'])}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)), subtitle: Text('${sale['created_at'] ?? ''} · ${sale['payment_mode'] ?? ''} · ${sale['cashier_name'] ?? ''}', style: const TextStyle(fontSize: 11)), trailing: Text(money.format(_number(sale['total'])), style: const TextStyle(fontWeight: FontWeight.w800)))).toList()))]);
-  Widget _settings() => ListView(padding: const EdgeInsets.all(26), children: [
-    const Text('Local browser data', style: TextStyle(color: Color(0xff78847d), fontSize: 12)),
-    const SizedBox(height: 15),
-    _section('Invoice identity', trailing: isAdmin ? IconButton(tooltip: 'Edit profile', onPressed: _saveShop, icon: const Icon(Icons.edit_outlined, size: 18)) : null, child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${shop['name']}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)), const SizedBox(height: 7), Text('${shop['address']}', style: const TextStyle(color: Color(0xff78847d))), Text('${shop['state']} · ${shop['phone']}', style: const TextStyle(color: Color(0xff78847d))), const SizedBox(height: 6), Text('GSTIN  ${shop['gstin']?.toString().isEmpty ?? true ? 'Not added' : shop['gstin']}', style: const TextStyle(fontSize: 12))]))),
-    const SizedBox(height: 16),
-    _section('Role preview', child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Role previews only; this demo has no sign-in or permission security.', style: TextStyle(fontSize: 12, color: Color(0xff78847d))), const SizedBox(height: 12), Wrap(spacing: 8, children: ['admin', 'cashier', 'viewer'].map((value) => ChoiceChip(label: Text(value), selected: role == value, onSelected: (_) => setState(() { role = value; if (page >= 4 && value != 'admin') page = 0; })).toList())]))),
-    const SizedBox(height: 16),
-    Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(onPressed: _resetDemo, icon: const Icon(Icons.restart_alt), label: const Text('Reset local demo data'))),
-  ]);
+  Widget _settings() => ListView(
+    padding: const EdgeInsets.all(26),
+    children: [
+      const Text('Local browser data', style: TextStyle(color: Color(0xff78847d), fontSize: 12)),
+      const SizedBox(height: 15),
+      _section(
+        'Invoice identity',
+        trailing: isAdmin ? IconButton(tooltip: 'Edit profile', onPressed: _saveShop, icon: const Icon(Icons.edit_outlined, size: 18)) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${shop['name']}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 7),
+            Text('${shop['address']}', style: const TextStyle(color: Color(0xff78847d))),
+            Text('${shop['state']} · ${shop['phone']}', style: const TextStyle(color: Color(0xff78847d))),
+            const SizedBox(height: 6),
+            Text('GSTIN  ${shop['gstin']?.toString().isEmpty ?? true ? 'Not added' : shop['gstin']}', style: const TextStyle(fontSize: 12)),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _section(
+        'Role preview',
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Role previews only; this demo has no sign-in or permission security.', style: TextStyle(fontSize: 12, color: Color(0xff78847d))),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final value in ['admin', 'cashier', 'viewer'])
+                  ChoiceChip(
+                    label: Text(value),
+                    selected: role == value,
+                    onSelected: (_) {
+                      setState(() {
+                        role = value;
+                        if (page >= 4 && value != 'admin') page = 0;
+                      });
+                    },
+                  ),
+              ],
+            ),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 16),
+      Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(onPressed: _resetDemo, icon: const Icon(Icons.restart_alt), label: const Text('Reset local demo data'))),
+    ],
+  );
 }
 
 class ExpandedIfWide extends StatelessWidget {
