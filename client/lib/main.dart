@@ -307,7 +307,17 @@ class _PosHomeState extends State<PosHome> {
 
   Widget _navItem(int index, String title, IconData icon) {
     final selected = page == index;
-    return Padding(padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 2), child: ListTile(selected: selected, selectedTileColor: const Color(0xff30463f), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)), leading: Icon(icon, size: 19, color: selected ? const Color(0xffc1e5aa) : const Color(0xffadc2b9)), title: Text(title, style: TextStyle(color: selected ? Colors.white : const Color(0xffd1ddd7), fontSize: 13, fontWeight: selected ? FontWeight.w700 : FontWeight.w500)), onTap: () => setState(() => page = index));
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 2),
+      child: ListTile(
+        selected: selected,
+        selectedTileColor: const Color(0xff30463f),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+        leading: Icon(icon, size: 19, color: selected ? const Color(0xffc1e5aa) : const Color(0xffadc2b9)),
+        title: Text(title, style: TextStyle(color: selected ? Colors.white : const Color(0xffd1ddd7), fontSize: 13, fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+        onTap: () => setState(() => page = index),
+      ),
+    );
   }
 
   Widget _pageView() => switch (page) { 0 => _dashboard(), 1 => _pos(), 2 => _inventory(), 3 => _sales(), _ => _settings() };
@@ -346,14 +356,117 @@ class _PosHomeState extends State<PosHome> {
   Widget _pos() {
     final filtered = items.where((item) => '${item['name']} ${item['sku']}'.toLowerCase().contains(search.text.toLowerCase())).toList();
     final wide = MediaQuery.sizeOf(context).width > 850;
-    return Padding(padding: const EdgeInsets.all(20), child: Flex(direction: wide ? Axis.horizontal : Axis.vertical, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Expanded(child: Column(children: [TextField(controller: search, onChanged: (_) => setState(() {}), decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Find a product by name or code')), const SizedBox(height: 14), Expanded(child: GridView.builder(gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: wide ? 3 : 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.65), itemCount: filtered.length, itemBuilder: (context, index) { final item = filtered[index]; final unavailable = _number(item['stock']) <= 0; return InkWell(onTap: unavailable ? null : () => setState(() => cart.update('${item['id']}', (qty) => qty + 1, ifAbsent: () => 1)), borderRadius: BorderRadius.circular(8), child: Container(padding: const EdgeInsets.all(13), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: const Color(0xffe5e8e1)), borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Row(children: [const Icon(Icons.local_cafe_outlined, color: Color(0xff176b59), size: 19), const Spacer(), Text('${item['stock']} ${item['unit']}', style: const TextStyle(fontSize: 10, color: Color(0xff78847d)))]), Text('${item['name']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), Text(money.format(_number(item['price'])), style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xff176b59)))])); }) )])),
-      SizedBox(width: wide ? 16 : 0, height: wide ? 0 : 14),
-      SizedBox(width: wide ? 340 : double.infinity, height: wide ? null : 400, child: Column(children: [DropdownButtonFormField<String>(initialValue: supplyType, decoration: const InputDecoration(labelText: 'Tax supply type', isDense: true), items: const [DropdownMenuItem(value: 'intra_state', child: Text('Intra-state · CGST + SGST')), DropdownMenuItem(value: 'inter_state', child: Text('Inter-state · IGST'))], onChanged: (value) { if (value != null) setState(() => supplyType = value); }), const SizedBox(height: 8), TextField(controller: placeOfSupply, decoration: const InputDecoration(labelText: 'Place of supply (state)', isDense: true)), const SizedBox(height: 8), Expanded(child: _cartPanel())])),
-    ]));
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Flex(
+        direction: wide ? Axis.horizontal : Axis.vertical,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Column(
+              children: [
+                TextField(controller: search, onChanged: (_) => setState(() {}), decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Find a product by name or code')),
+                const SizedBox(height: 14),
+                Expanded(
+                  child: GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: wide ? 3 : 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.65),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final item = filtered[index];
+                      final unavailable = _number(item['stock']) <= 0;
+                      return InkWell(
+                        onTap: unavailable ? null : () => setState(() => cart.update('${item['id']}', (quantity) => quantity + 1, ifAbsent: () => 1)),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.all(13),
+                          decoration: BoxDecoration(color: Colors.white, border: Border.all(color: const Color(0xffe5e8e1)), borderRadius: BorderRadius.circular(8)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(children: [const Icon(Icons.local_cafe_outlined, color: Color(0xff176b59), size: 19), const Spacer(), Text('${item['stock']} ${item['unit']}', style: const TextStyle(fontSize: 10, color: Color(0xff78847d)))]),
+                              Text('${item['name']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                              Text(money.format(_number(item['price'])), style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xff176b59))),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: wide ? 16 : 0, height: wide ? 0 : 14),
+          SizedBox(
+            width: wide ? 340 : double.infinity,
+            height: wide ? null : 400,
+            child: Column(
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: supplyType,
+                  decoration: const InputDecoration(labelText: 'Tax supply type', isDense: true),
+                  items: const [
+                    DropdownMenuItem(value: 'intra_state', child: Text('Intra-state · CGST + SGST')),
+                    DropdownMenuItem(value: 'inter_state', child: Text('Inter-state · IGST')),
+                  ],
+                  onChanged: (value) { if (value != null) setState(() => supplyType = value); },
+                ),
+                const SizedBox(height: 8),
+                TextField(controller: placeOfSupply, decoration: const InputDecoration(labelText: 'Place of supply (state)', isDense: true)),
+                const SizedBox(height: 8),
+                Expanded(child: _cartPanel()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _cartPanel() => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: const Color(0xfffbfcfa), border: Border.all(color: const Color(0xffe5e8e1)), borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Text('Current sale', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text('${cart.values.fold<int>(0, (a, b) => a + b)} items', style: const TextStyle(fontSize: 11, color: Color(0xff78847d)))]), const Divider(height: 22), Expanded(child: cart.isEmpty ? const Center(child: Text('Tap an item to add it here', style: TextStyle(color: Color(0xff78847d), fontSize: 12))) : ListView(children: cart.entries.map((entry) { final item = items.firstWhere((row) => row['id'] == entry.key); return Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${item['name']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), Text(money.format(_number(item['price'])), style: const TextStyle(fontSize: 10, color: Color(0xff78847d)))])), IconButton(onPressed: () => setState(() { if (entry.value <= 1) { cart.remove(entry.key); } else { cart[entry.key] = entry.value - 1; } }), icon: const Icon(Icons.remove_circle_outline, size: 18)), Text('${entry.value}', style: const TextStyle(fontSize: 12)), IconButton(onPressed: () => setState(() => cart[entry.key] = entry.value + 1), icon: const Icon(Icons.add_circle_outline, size: 18)), Text(money.format(_number(item['price']) * entry.value), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))])); }).toList())), const Divider(height: 20), Row(children: [const Text('Taxable value', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartSubtotal), style: const TextStyle(fontSize: 12))]), const SizedBox(height: 7), Row(children: [const Text('GST', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartTax), style: const TextStyle(fontSize: 12))]), const SizedBox(height: 12), Row(children: [const Text('Total due', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text(money.format(cartSubtotal + cartTax), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19, color: Color(0xff176b59)))]), const SizedBox(height: 12), SegmentedButton<String>(segments: const [ButtonSegment(value: 'Cash', label: Text('Cash')), ButtonSegment(value: 'UPI', label: Text('UPI')), ButtonSegment(value: 'Card', label: Text('Card'))], selected: {paymentMode}, onSelectionChanged: (value) => setState(() => paymentMode = value.first)), const SizedBox(height: 11), SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: cart.isEmpty ? null : _checkout, icon: const Icon(Icons.check), label: const Text('Charge & print invoice'))]));
+  Widget _cartPanel() {
+    final cartLines = cart.entries.map((entry) {
+      final item = items.firstWhere((row) => row['id'] == entry.key);
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${item['name']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), Text(money.format(_number(item['price'])), style: const TextStyle(fontSize: 10, color: Color(0xff78847d)))])),
+            IconButton(onPressed: () => setState(() { if (entry.value <= 1) { cart.remove(entry.key); } else { cart[entry.key] = entry.value - 1; } }), icon: const Icon(Icons.remove_circle_outline, size: 18)),
+            Text('${entry.value}', style: const TextStyle(fontSize: 12)),
+            IconButton(onPressed: () => setState(() => cart[entry.key] = entry.value + 1), icon: const Icon(Icons.add_circle_outline, size: 18)),
+            Text(money.format(_number(item['price']) * entry.value), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      );
+    }).toList();
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(color: const Color(0xfffbfcfa), border: Border.all(color: const Color(0xffe5e8e1)), borderRadius: BorderRadius.circular(8)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [const Text('Current sale', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text('${cart.values.fold<int>(0, (sum, quantity) => sum + quantity)} items', style: const TextStyle(fontSize: 11, color: Color(0xff78847d)))]),
+          const Divider(height: 22),
+          Expanded(child: cartLines.isEmpty ? const Center(child: Text('Tap an item to add it here', style: TextStyle(color: Color(0xff78847d), fontSize: 12))) : ListView(children: cartLines)),
+          const Divider(height: 20),
+          Row(children: [const Text('Taxable value', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartSubtotal), style: const TextStyle(fontSize: 12))]),
+          const SizedBox(height: 7),
+          Row(children: [const Text('GST', style: TextStyle(fontSize: 12)), const Spacer(), Text(money.format(cartTax), style: const TextStyle(fontSize: 12))]),
+          const SizedBox(height: 12),
+          Row(children: [const Text('Total due', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)), const Spacer(), Text(money.format(cartSubtotal + cartTax), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19, color: Color(0xff176b59)))]),
+          const SizedBox(height: 12),
+          SegmentedButton<String>(
+            segments: const [ButtonSegment(value: 'Cash', label: Text('Cash')), ButtonSegment(value: 'UPI', label: Text('UPI')), ButtonSegment(value: 'Card', label: Text('Card'))],
+            selected: {paymentMode},
+            onSelectionChanged: (value) => setState(() => paymentMode = value.first),
+          ),
+          const SizedBox(height: 11),
+          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: cart.isEmpty ? null : _checkout, icon: const Icon(Icons.check), label: const Text('Charge & print invoice'))),
+        ],
+      ),
+    );
+  }
 
   Widget _sales() => ListView(padding: const EdgeInsets.all(26), children: [Text('${sales.length} recent transactions', style: const TextStyle(color: Color(0xff78847d), fontSize: 12)), const SizedBox(height: 15), _section('Sales history', child: sales.isEmpty ? const Padding(padding: EdgeInsets.all(22), child: Text('Completed transactions appear here.')) : Column(children: sales.map((sale) => ListTile(leading: const Icon(Icons.receipt_long_outlined, color: Color(0xff176b59)), title: Text('Invoice ${sale['invoice_no'] ?? _shortId(sale['id'])}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)), subtitle: Text('${sale['created_at'] ?? ''} · ${sale['payment_mode'] ?? ''} · ${sale['cashier_name'] ?? ''}', style: const TextStyle(fontSize: 11)), trailing: Text(money.format(_number(sale['total'])), style: const TextStyle(fontWeight: FontWeight.w800)))).toList()))]);
   Widget _settings() => ListView(
